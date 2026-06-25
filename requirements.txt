@@ -1,0 +1,4 @@
+# Add Python dependencies for the ai-qa-agent project here
+# Example:
+# selenium==4.12.0
+# behave==1.2.7
