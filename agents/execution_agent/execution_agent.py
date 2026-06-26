@@ -69,11 +69,16 @@ class ExecutionAgent:
         )
 
         page_file = (
-            self.project_root
-            / "framework"
-            / "pages"
-            / f"{feature_name}_page.py"
-        )
+
+                self.project_root
+
+                / "framework"
+
+                / "pages"
+
+                / f"{feature_name}_page.py"
+
+            )
 
         step_file = (
             self.project_root

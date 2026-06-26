@@ -182,15 +182,29 @@ class ValidationAgent:
 
             class MethodVisitor(ast.NodeVisitor):
 
-                def visit_Call(self, node):
+                  def visit_Call(self, node):
 
-                    if isinstance(node.func, ast.Attribute):
+                        if isinstance(node.func, ast.Attribute):
 
-                        called_methods.add(
-                            node.func.attr
-                        )
+                            # Validate only page object method calls
 
-                    self.generic_visit(node)
+                            if isinstance(node.func.value, ast.Name):
+
+                                if node.func.value.id == "page":
+
+                                    called_methods.add(
+                                        node.func.attr
+                                    )
+
+                            elif isinstance(node.func.value, ast.Attribute):
+
+                                if node.func.value.attr == "page":
+
+                                    called_methods.add(
+                                        node.func.attr
+                                    )
+
+                        self.generic_visit(node)
 
             MethodVisitor().visit(step_tree)
 
@@ -204,15 +218,28 @@ class ValidationAgent:
 
             ignore = {
 
-                "__init__",
+                 "__init__",
 
-                "info",
+                    "info",
 
-                "debug",
+                    "debug",
 
-                "warning",
+                    "warning",
 
-                "error"
+                    "error",
+
+                    "exception",
+
+                    "critical",
+
+                    "get_driver",
+
+                    "getLogger",
+
+                    "quit",
+
+                    "close"
+
 
             }
 
@@ -245,7 +272,7 @@ class ValidationAgent:
                 "missing_methods": []
 
             }
-    import ast
+    
 
 
     def validate_imports(

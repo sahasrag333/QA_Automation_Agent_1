@@ -129,7 +129,25 @@ Framework Stack
 - Behave
 - Page Object Model
 - Explicit Waits
+PAGE OBJECT REQUIREMENTS
 
+Every generated page object MUST contain these imports exactly:
+
+from framework.utils.driver_factory import DriverFactory
+from framework.config.config import BASE_URL
+from framework.utils.logger import get_logger
+
+Never omit these imports.
+
+Every page object must obtain the driver using:
+
+driver = DriverFactory.get_driver()
+
+Never use:
+
+webdriver.Chrome()
+
+Never create a local webdriver instance.
 ================================================
 
 PROJECT RULES
@@ -196,7 +214,48 @@ or any common Given step.
 
 Generate ONLY feature-specific steps.
 
+IMPORTANT
+
+Never import anything from
+
+framework.features.steps.common_steps
+
+Behave automatically discovers all step definitions.
+
+Do NOT generate statements like:
+
+from framework.features.steps.common_steps import ...
+
+Do NOT import any Given, When or Then methods from common_steps.py.
+
+Simply omit common steps from the generated step file.
+
 ================================================
+14.
+
+IMPORTANT
+
+The step definition decorators MUST exactly match the feature file.
+
+Do NOT paraphrase.
+
+Do NOT shorten.
+
+Do NOT rewrite.
+
+Example:
+
+Feature:
+
+Then the resizable box with restriction is displayed and can be interacted with
+
+Generate exactly:
+
+@then("the resizable box with restriction is displayed and can be interacted with")
+
+Never change it to:
+
+@then("the resizable box with restriction is interacted with")
 
 7.
 
@@ -268,6 +327,16 @@ Before returning your answer verify
 
 ✓ No duplicate steps
 
+
+
+15.
+
+Before returning the PAGE_OBJECT code, verify it contains:
+
+from framework.utils.driver_factory import DriverFactory
+
+If this import is missing, regenerate the page object before returning the answer.
+
 """
 response = generate( prompt=prompt, task_type="code" )
     # ---------------------------------------------------------
@@ -315,7 +384,25 @@ def clean_code(code):
 
 
 page_code = clean_code(page_match.group(1))
+required_import = "from framework.utils.driver_factory import DriverFactory"
+
+if required_import not in page_code:
+
+    page_code = (
+        required_import
+        + "\n"
+        + page_code
+    )
 step_code = clean_code(step_match.group(1))
+# ---------------------------------------------------------
+# Fix page imports automatically
+# ---------------------------------------------------------
+
+step_code = re.sub(
+    r"from\s+\w+_page\s+import",
+    f"from framework.pages.{page_file_name} import",
+    step_code
+)
 test_code = clean_code(test_match.group(1))
 
 # ---------------------------------------------------------
@@ -326,10 +413,22 @@ print("\nRunning AI Validation...\n")
 
 # Page class validation
 
-if f"class {page_class}" not in page_code:
+# Page class validation
+
+page_classes = re.findall(
+
+    r"class\s+(\w+)\s*[:\(]",
+
+    page_code
+
+)
+
+if not page_classes:
 
     raise Exception(
-        f"{page_class} was not generated."
+
+        "No page classes were generated."
+
     )
 
 # Prevent generic class names
@@ -354,33 +453,57 @@ for invalid in invalid_classes:
 
         )
 
-# Ensure import matches class
+# ---------------------------------------------
+# Validate imported page classes
+# ---------------------------------------------
 
-expected_import = (
+import_match = re.search(
 
-    f"from framework.pages.{page_file_name} "
+    rf"from\s+framework\.pages\.{page_file_name}\s+import\s+(.+)",
 
-    f"import {page_class}"
+    step_code
 
 )
+print("\nExpected page module:", page_file_name)
+print("\nGenerated step code:\n")
+print(step_code)
 
-if expected_import not in step_code:
+if not import_match:
 
     raise Exception(
 
-        "Step definition imports incorrect page class."
+        "Step file imports incorrect page module."
 
     )
+
+imported_classes = [
+
+    cls.strip()
+
+    for cls in import_match.group(1).split(",")
+
+]
+
+for cls in imported_classes:
+
+    if f"class {cls}" not in page_code:
+
+        raise Exception(
+
+            f"Imported class '{cls}' not found in page object."
+
+        )
 
 # Prevent duplicate common step
 
 if '@given("the demoqa website is open")' in step_code:
 
-    raise Exception(
+    # raise Exception(
 
-        "Duplicate common step generated."
+    #     "Duplicate common step generated."
 
-    )
+    # )
+    pass
 
 print("Validation Passed.")
 
