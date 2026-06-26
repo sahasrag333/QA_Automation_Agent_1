@@ -1,10 +1,7 @@
 from behave import given, when, then
 from framework.pages.button_click_page import HomePage, ButtonsPage
 
-@given('the demoqa website is open')
-def step_impl(context):
-    home_page = HomePage()
-    home_page.open()
+
 
 @when("the Elements link is clicked")
 def step_impl(context):

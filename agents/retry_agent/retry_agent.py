@@ -4,6 +4,8 @@ import sys
 import os
 from pathlib import Path
 
+from agents.healing_engine.healing_engine import HealingEngine
+
 
 class RetryAgent:
 
@@ -21,6 +23,7 @@ class RetryAgent:
         if not report_file.exists():
 
             print("\nHealing report not found.")
+
             return "FAIL"
 
         with open(
@@ -35,39 +38,7 @@ class RetryAgent:
 
         print("Healing Suggestions:\n")
 
-        # -----------------------------
-        # Display suggestions
-        # -----------------------------
-
-        if "locators" in healing_data:
-
-            for locator in healing_data["locators"]:
-
-                print(
-                    f"Original Locator : {locator['original']}"
-                )
-
-                suggestions = locator.get(
-                    "suggestions",
-                    []
-                )
-
-                if suggestions:
-
-                    print(
-                        "Suggested Locator :",
-                        suggestions[0]
-                    )
-
-                print()
-
-        else:
-
-            print(healing_data)
-
-        # -----------------------------
-        # Retry Execution
-        # -----------------------------
+        print(healing_data)
 
         feature_file = (
             project_root
@@ -76,25 +47,84 @@ class RetryAgent:
             / f"{feature_name}.feature"
         )
 
-        print(
-            f"Retrying Feature : {feature_name}\n"
+        print(f"\nRetrying Feature : {feature_name}")
+
+        # --------------------------------------------------
+        # Healing Engine
+        # --------------------------------------------------
+
+        engine = HealingEngine()
+
+        temp_file = engine.apply_first_fix(
+            project_root,
+            feature_name
         )
 
-        result = subprocess.run(
-            [
-                sys.executable,
-                "-m",
-                "behave",
-                str(feature_file)
-            ],
-            cwd=project_root,
-            env={
-                **os.environ,
-                "PYTHONPATH": str(project_root)
-            },
-            capture_output=True,
-            text=True
+        # ---------------------------------------
+# No healing possible
+# ---------------------------------------
+
+        if temp_file is None:
+
+            print("\nNo healing could be applied.")
+
+            return {
+
+                "status": "FAIL",
+
+                "stdout": "",
+
+                "stderr": "No locator available for healing."
+
+            }
+
+
+        page_file = (
+            project_root
+            / "framework"
+            / "pages"
+            / f"{feature_name}_page.py"
         )
+
+        backup_file = engine.backup_original_page(
+            page_file
+        )
+
+        try:
+
+            engine.apply_healed_page(
+                temp_file,
+                page_file
+            )
+
+            print("\nRunning Retry...\n")
+
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "behave",
+                    str(feature_file)
+                ],
+                cwd=project_root,
+                env={
+                    **os.environ,
+                    "PYTHONPATH": str(project_root)
+                },
+                capture_output=True,
+                text=True
+            )
+
+        finally:
+
+            engine.restore_original_page(
+                backup_file,
+                page_file
+            )
+
+            engine.cleanup_temp_page(
+                temp_file
+            )
 
         print(result.stdout)
 
@@ -102,15 +132,25 @@ class RetryAgent:
 
             print(result.stderr)
 
-        if result.returncode == 0:
+        retry_result = {
 
-            print("\nRetry Result : PASS\n")
+            "status": (
+                "PASS"
+                if result.returncode == 0
+                else "FAIL"
+            ),
 
-            return "PASS"
+            "stdout": result.stdout,
 
-        print("\nRetry Result : FAIL\n")
+            "stderr": result.stderr
 
-        return "FAIL"
+        }
+
+        print(
+            f"\nRetry Result : {retry_result['status']}\n"
+        )
+
+        return retry_result
 
 
 if __name__ == "__main__":
@@ -125,5 +165,5 @@ if __name__ == "__main__":
 
     agent.retry_test(
         project_root,
-        "button_click"
+        "widget_click"
     )
